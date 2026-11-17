@@ -1,11 +1,20 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import {
+  addPet as addPetFirebase,
+  adoptPet as adoptPetFirebase,
+  addCareRecord as addCareRecordFirebase,
+  getCareRecords,
+  subscribeToPets,
+  subscribeToMyPets,
+  subscribeToCareRecords
+} from '../firebase/firestore'
+import { useAuth } from './AuthContext'
 
 const PetContext = createContext()
 
-// Sample initial pet data - Philippines localized
+// Initial pet data for seeding
 const initialPets = [
   {
-    id: 1,
     name: "Buddy",
     type: "Dog",
     breed: "Golden Retriever",
@@ -22,7 +31,6 @@ const initialPets = [
     personality: ["Friendly", "Energetic", "Good with kids", "Loves fetch"]
   },
   {
-    id: 2,
     name: "Whiskers",
     type: "Cat",
     breed: "Persian",
@@ -39,7 +47,6 @@ const initialPets = [
     personality: ["Calm", "Affectionate", "Quiet", "Indoor cat"]
   },
   {
-    id: 3,
     name: "Rocket",
     type: "Dog",
     breed: "Border Collie",
@@ -56,7 +63,6 @@ const initialPets = [
     personality: ["Smart", "Active", "Trainable", "High energy"]
   },
   {
-    id: 4,
     name: "Luna",
     type: "Cat",
     breed: "Maine Coon",
@@ -73,7 +79,6 @@ const initialPets = [
     personality: ["Gentle", "Talkative", "Social", "Fluffy"]
   },
   {
-    id: 5,
     name: "Max",
     type: "Dog",
     breed: "German Shepherd",
@@ -90,7 +95,6 @@ const initialPets = [
     personality: ["Loyal", "Protective", "Trained", "Intelligent"]
   },
   {
-    id: 6,
     name: "Mochi",
     type: "Rabbit",
     breed: "Holland Lop",
@@ -107,7 +111,6 @@ const initialPets = [
     personality: ["Cute", "Litter trained", "Gentle", "Vegetarian"]
   },
   {
-    id: 7,
     name: "Chico",
     type: "Dog",
     breed: "Aspin (Asong Pinoy)",
@@ -124,7 +127,6 @@ const initialPets = [
     personality: ["Resilient", "Loyal", "Adaptable", "Street smart"]
   },
   {
-    id: 8,
     name: "Simba",
     type: "Cat",
     breed: "Puspin (Pusang Pinoy)",
@@ -143,70 +145,238 @@ const initialPets = [
 ]
 
 export function PetProvider({ children }) {
-  const [pets, setPets] = useState(() => {
-    const saved = localStorage.getItem('pawsome-pets')
-    return saved ? JSON.parse(saved) : initialPets
-  })
-  const [myPets, setMyPets] = useState(() => {
-    const saved = localStorage.getItem('pawsome-my-pets')
-    return saved ? JSON.parse(saved) : []
-  })
-  const [careRecords, setCareRecords] = useState(() => {
-    const saved = localStorage.getItem('pawsome-care-records')
-    return saved ? JSON.parse(saved) : {}
-  })
+  const { user } = useAuth()
+  const [pets, setPets] = useState([])
+  const [myPets, setMyPets] = useState([])
+  const [careRecords, setCareRecords] = useState({})
   const [filters, setFilters] = useState({
     type: '',
     size: '',
     location: '',
     search: ''
   })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [useFirebase, setUseFirebase] = useState(false)
 
+  // Initialize - try Firebase first, fallback to localStorage
   useEffect(() => {
-    localStorage.setItem('pawsome-pets', JSON.stringify(pets))
-  }, [pets])
-
-  useEffect(() => {
-    localStorage.setItem('pawsome-my-pets', JSON.stringify(myPets))
-  }, [myPets])
-
-  useEffect(() => {
-    localStorage.setItem('pawsome-care-records', JSON.stringify(careRecords))
-  }, [careRecords])
-
-  const addPet = (pet) => {
-    const newPet = {
-      ...pet,
-      id: Date.now(),
-      adopted: false,
-      vaccinated: pet.vaccinated || false,
-      neutered: pet.neutered || false
+    const initData = async () => {
+      try {
+        // Try to use Firebase if user is authenticated
+        if (user) {
+          setUseFirebase(true)
+          await loadFromFirebase()
+        } else {
+          loadFromLocalStorage()
+        }
+      } catch (err) {
+        console.warn('Firebase unavailable, falling back to localStorage:', err)
+        loadFromLocalStorage()
+      } finally {
+        setLoading(false)
+      }
     }
-    setPets(prev => [newPet, ...prev])
-    return newPet
+
+    initData()
+  }, [user])
+
+  // Load data from Firebase with real-time subscriptions
+  const loadFromFirebase = async () => {
+    if (!user) return
+
+    try {
+      // Subscribe to pets (real-time)
+      const unsubscribePets = subscribeToPets((fetchedPets) => {
+        setPets(fetchedPets)
+        saveToLocalStorage('pawsome-pets', fetchedPets)
+      })
+
+      // Subscribe to myPets (real-time)
+      const unsubscribeMyPets = subscribeToMyPets(user.uid, (fetchedMyPets) => {
+        setMyPets(fetchedMyPets)
+        saveToLocalStorage('pawsome-my-pets', fetchedMyPets)
+      })
+
+      // Care records loaded on demand per pet (not real-time for performance)
+
+      // Cleanup subscriptions on unmount
+      return () => {
+        unsubscribePets()
+        unsubscribeMyPets()
+      }
+    } catch (err) {
+      console.error('Firebase load error:', err)
+      throw err
+    }
   }
 
-  const adoptPet = (petId) => {
+  // Load data from localStorage (fallback/offline)
+  const loadFromLocalStorage = () => {
+    try {
+      const savedPets = localStorage.getItem('pawsome-pets')
+      const savedMyPets = localStorage.getItem('pawsome-my-pets')
+      const savedCareRecords = localStorage.getItem('pawsome-care-records')
+
+      if (savedPets) {
+        setPets(JSON.parse(savedPets))
+      } else {
+        // First time - use initial data
+        setPets(initialPets)
+        saveToLocalStorage('pawsome-pets', initialPets)
+      }
+
+      if (savedMyPets) {
+        setMyPets(JSON.parse(savedMyPets))
+      } else {
+        setMyPets([])
+      }
+
+      if (savedCareRecords) {
+        setCareRecords(JSON.parse(savedCareRecords))
+      } else {
+        setCareRecords({})
+      }
+    } catch (err) {
+      console.error('LocalStorage load error:', err)
+      setPets(initialPets)
+      setMyPets([])
+      setCareRecords({})
+    }
+  }
+
+  // Save to localStorage
+  const saveToLocalStorage = (key, data) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(data))
+    } catch (err) {
+      console.warn('LocalStorage save error:', err)
+    }
+  }
+
+  // Sync pets to localStorage when changed
+  useEffect(() => {
+    if (pets.length > 0) {
+      saveToLocalStorage('pawsome-pets', pets)
+    }
+  }, [pets])
+
+  // Sync myPets to localStorage when changed
+  useEffect(() => {
+    saveToLocalStorage('pawsome-my-pets', myPets)
+  }, [myPets])
+
+  // Sync careRecords to localStorage when changed
+  useEffect(() => {
+    saveToLocalStorage('pawsome-care-records', careRecords)
+  }, [careRecords])
+
+  // Add pet - works with both Firebase and localStorage
+  const addPet = useCallback(async (pet) => {
+    const newPet = {
+      ...pet,
+      id: useFirebase && user ? undefined : Date.now(), // Firebase generates ID
+      adopted: false,
+      vaccinated: pet.vaccinated || false,
+      neutered: pet.neutered || false,
+      createdAt: new Date().toISOString()
+    }
+
+    if (useFirebase && user) {
+      try {
+        const savedPet = await addPetFirebase(newPet, user.uid)
+        setPets(prev => [savedPet, ...prev])
+        return savedPet
+      } catch (err) {
+        console.error('Firebase addPet error:', err)
+        // Fallback to localStorage
+      }
+    }
+
+    // localStorage fallback
+    const localPet = { ...newPet, id: Date.now() }
+    setPets(prev => [localPet, ...prev])
+    return localPet
+  }, [useFirebase, user])
+
+  // Adopt pet
+  const adoptPet = useCallback(async (petId) => {
+    const petToAdopt = pets.find(p => p.id === petId)
+    if (!petToAdopt) return
+
+    if (useFirebase && user) {
+      try {
+        await adoptPetFirebase(petId, user.uid)
+        // Real-time subscription will update myPets
+        setPets(prev => prev.map(pet =>
+          pet.id === petId ? { ...pet, adopted: true } : pet
+        ))
+        return
+      } catch (err) {
+        console.error('Firebase adoptPet error:', err)
+        // Fallback to localStorage
+      }
+    }
+
+    // localStorage fallback
     setPets(prev => prev.map(pet =>
       pet.id === petId ? { ...pet, adopted: true } : pet
     ))
-    const adoptedPet = pets.find(p => p.id === petId)
-    if (adoptedPet) {
-      setMyPets(prev => [{ ...adoptedPet, adopted: true, adoptedDate: new Date().toISOString() }, ...prev])
-    }
-  }
+    setMyPets(prev => [{ ...petToAdopt, adopted: true, adoptedDate: new Date().toISOString() }, ...prev])
+  }, [pets, useFirebase, user])
 
-  const addCareRecord = (petId, record) => {
+  // Add care record
+  const addCareRecord = useCallback(async (petId, record) => {
+    const newRecord = {
+      ...record,
+      id: useFirebase && user ? undefined : Date.now(),
+      date: new Date().toISOString(),
+      petId
+    }
+
+    if (useFirebase && user) {
+      try {
+        const savedRecord = await addCareRecordFirebase(petId, newRecord, user.uid)
+        setCareRecords(prev => ({
+          ...prev,
+          [petId]: [savedRecord, ...(prev[petId] || [])]
+        }))
+        return savedRecord
+      } catch (err) {
+        console.error('Firebase addCareRecord error:', err)
+        // Fallback to localStorage
+      }
+    }
+
+    // localStorage fallback
     setCareRecords(prev => ({
       ...prev,
-      [petId]: [...(prev[petId] || []), { ...record, id: Date.now(), date: new Date().toISOString() }]
+      [petId]: [newRecord, ...(prev[petId] || [])]
     }))
-  }
+    return newRecord
+  }, [useFirebase, user])
 
-  const getCareRecords = (petId) => {
+  // Get care records for a pet
+  const getCareRecordsForPet = useCallback(async (petId) => {
+    if (useFirebase && user) {
+      try {
+        const records = await getCareRecords(petId)
+        setCareRecords(prev => ({ ...prev, [petId]: records }))
+        return records
+      } catch (err) {
+        console.error('Firebase getCareRecords error:', err)
+      }
+    }
     return careRecords[petId] || []
-  }
+  }, [careRecords, useFirebase, user])
 
+  // Subscribe to care records for a pet (real-time)
+  const subscribeToPetCareRecords = useCallback((petId, callback) => {
+    if (!useFirebase || !user) return () => {}
+    return subscribeToCareRecords(petId, callback)
+  }, [useFirebase, user])
+
+  // Filter pets locally
   const filteredPets = pets.filter(pet => {
     if (filters.type && pet.type !== filters.type) return false
     if (filters.size && pet.size !== filters.size) return false
@@ -216,6 +386,34 @@ export function PetProvider({ children }) {
     return true
   })
 
+  // Seed database with initial data (admin function)
+  const seedDatabase = useCallback(async () => {
+    if (!useFirebase || !user) {
+      setError('Must be logged in with Firebase to seed database')
+      return false
+    }
+
+    try {
+      for (const pet of initialPets) {
+        await addPetFirebase({ ...pet, ownerId: user.uid }, user.uid)
+      }
+      return true
+    } catch (err) {
+      setError(err.message)
+      return false
+    }
+  }, [useFirebase, user])
+
+  // Clear all data (for testing)
+  const clearAllData = useCallback(() => {
+    setPets(initialPets)
+    setMyPets([])
+    setCareRecords({})
+    localStorage.removeItem('pawsome-pets')
+    localStorage.removeItem('pawsome-my-pets')
+    localStorage.removeItem('pawsome-care-records')
+  }, [])
+
   return (
     <PetContext.Provider value={{
       pets,
@@ -223,11 +421,17 @@ export function PetProvider({ children }) {
       filteredPets,
       filters,
       setFilters,
+      loading,
+      error,
+      useFirebase,
       addPet,
       adoptPet,
       addCareRecord,
-      getCareRecords,
-      careRecords
+      getCareRecords: getCareRecordsForPet,
+      subscribeToCareRecords: subscribeToPetCareRecords,
+      careRecords,
+      seedDatabase,
+      clearAllData
     }}>
       {children}
     </PetContext.Provider>

@@ -782,6 +782,132 @@ ul, ol {
   .header-actions .btn-primary {
     padding: var(--space-2);
   }
+
+  .header-actions .user-menu {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+}
+
+/* ========================================
+   Component Styles - Auth Pages
+   ======================================== */
+
+.auth-page {
+  min-height: calc(100vh - 200px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-4);
+}
+
+.auth-card {
+  background-color: var(--color-neutral-0);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-xl);
+  padding: var(--space-10);
+  width: 100%;
+  max-width: 440px;
+}
+
+.auth-header .logo {
+  justify-content: center;
+}
+
+.auth-header .logo-icon {
+  width: 40px;
+  height: 40px;
+}
+
+.auth-header .logo-text {
+  font-size: var(--font-size-2xl);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  color: var(--color-neutral-400);
+  font-size: var(--font-size-sm);
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--color-neutral-200);
+}
+
+/* Toast Styles (for auth errors) */
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background-color: var(--color-neutral-0);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  border-left: 4px solid var(--color-error-500);
+  animation: slideIn 0.3s ease;
+}
+
+.toast-error {
+  border-left-color: var(--color-error-500);
+}
+
+.toast-success {
+  border-left-color: var(--color-success-500);
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--color-error-500);
+}
+
+.toast-content {
+  flex: 1;
+}
+
+.toast-message {
+  font-size: var(--font-size-sm);
+  color: var(--color-neutral-700);
+  margin: 0;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  color: var(--color-neutral-400);
+  padding: var(--space-1);
+  transition: color var(--transition-fast);
+}
+
+.toast-close:hover {
+  color: var(--color-neutral-700);
+}
+
+/* Hidden utility */
+.hidden {
+  display: none;
+}
+
+@media (min-width: 640px) {
+  .sm\:inline-flex {
+    display: inline-flex;
+  }
+
+  .sm\:inline {
+    display: inline;
+  }
 }
 
 /* ========================================
