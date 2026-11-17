@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { usePets } from '../context/PetContext'
+import { formatPHP } from '../utils/currency'
 
 export default function Home() {
   const { filteredPets } = usePets()
@@ -101,7 +102,7 @@ export default function Home() {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                         {pet.location}
                       </span>
-                      <span className="pet-card-fee">${pet.adoptionFee}</span>
+                      <span className="pet-card-fee">{formatPHP(pet.adoptionFee)}</span>
                     </div>
                   </div>
                 </Link>

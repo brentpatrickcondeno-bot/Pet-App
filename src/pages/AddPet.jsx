@@ -262,7 +262,7 @@ export default function AddPet() {
                   className={`form-input ${errors.location ? 'border-error-500' : ''}`}
                   value={formData.location}
                   onChange={handleChange}
-                  placeholder="e.g., New York, NY"
+                  placeholder="e.g., Quezon City, Metro Manila"
                   aria-describedby={errors.location ? 'location-error' : undefined}
                   aria-invalid={!!errors.location}
                 />
@@ -270,7 +270,7 @@ export default function AddPet() {
               </div>
 
               <div className="form-group">
-                <label htmlFor="adoptionFee" className="form-label">Adoption Fee ($) *</label>
+                <label htmlFor="adoptionFee" className="form-label">Adoption Fee (PHP) *</label>
                 <input
                   type="number"
                   id="adoptionFee"

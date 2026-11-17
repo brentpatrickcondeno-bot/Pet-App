@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { usePets } from '../context/PetContext'
+import { formatPHP } from '../utils/currency'
 
 export default function PetDetail() {
   const { id } = useParams()
@@ -143,7 +144,7 @@ export default function PetDetail() {
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                   </svg>
-                  Adopt {pet.name} - ${pet.adoptionFee}
+                  Adopt {pet.name} - {formatPHP(pet.adoptionFee)}
                 </button>
               )}
               <Link to="/pets" className="btn btn-outline btn-full">Back to Browse</Link>
@@ -157,7 +158,7 @@ export default function PetDetail() {
             <h3>Adoption Details</h3>
             <div className="pet-detail-adoption-fee">
               <span className="pet-detail-fee-label">Adoption Fee</span>
-              <span className="pet-detail-fee-amount">${pet.adoptionFee}</span>
+              <span className="pet-detail-fee-amount">{formatPHP(pet.adoptionFee)}</span>
             </div>
             <div className="pet-detail-includes">
               <div className="pet-detail-include-item">
